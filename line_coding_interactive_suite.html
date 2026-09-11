@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Line Coding Interactive Suite & Spectral Analyzer</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    canvas {
+      display: block;
+      width: 100%;
+    }
+    .glow-blue {
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.5);
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-3 sm:p-6 font-sans min-h-screen">
+  <div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Top Navigation & Header -->
+    <header class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 sm:p-6 shadow-sm">
+      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex p-2 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20">
+              ⚡
+            </span>
+            <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-[var(--foreground)]">
+              Digital Line Coding & Spectral Analysis Suite
+            </h1>
+          </div>
+          <p class="text-xs sm:text-sm text-[var(--muted-foreground)] mt-1">
+            Real-time multi-channel moving oscilloscope, in-browser Welch PSD spectral estimation, and transmission diagnostics.
+          </p>
+        </div>
+
+        <!-- Global Status Badges -->
+        <div class="flex flex-wrap items-center gap-2 text-xs font-medium">
+          <span class="px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live 60 FPS Engine
+          </span>
+          <span class="px-3 py-1 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20">
+            6 Standard Codes
+          </span>
+          <span class="px-3 py-1 rounded-full bg-purple-500/10 text-purple-500 border border-purple-500/20">
+            Welch's Method PSD
+          </span>
+        </div>
+      </div>
+
+      <!-- Interactive Bit Sequence Bar -->
+      <div class="mt-6 pt-5 border-t border-[var(--border)] space-y-3">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <label class="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+            Transmitter Bit Stream Input ($N$ bits)
+          </label>
+          <div class="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+            <span>Bit Count: <strong id="bitCount" class="text-[var(--foreground)]">12</strong></span>
+            <span>•</span>
+            <span>Bit Rate: <strong class="text-blue-500">1.0 kbps</strong></span>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2">
+          <div class="relative flex-1">
+            <input 
+              type="text" 
+              id="bitInput" 
+              value="101100101101" 
+              placeholder="e.g. 101100101101"
+              class="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-sm font-mono tracking-widest text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="btnRandom" class="px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+              🎲 Randomize
+            </button>
+            <button id="btnToggleAll" class="px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+              🔄 Invert
+            </button>
+            <button id="btnAlternating" class="px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+              ⚡ 101010...
+            </button>
+            <button id="btnLongRun" class="px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+              🧱 Long Runs
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main View Tabs -->
+    <div class="flex items-center gap-2 border-b border-[var(--border)] pb-2 text-sm font-semibold">
+      <button id="tabOscilloscope" class="px-4 py-2 rounded-xl bg-blue-600 text-white shadow-sm flex items-center gap-2">
+        📺 Moving Oscilloscope
+      </button>
+      <button id="tabSpectrum" class="px-4 py-2 rounded-xl text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card)] transition flex items-center gap-2">
+        📈 Live Spectrum & Welch PSD
+      </button>
+      <button id="tabComparison" class="px-4 py-2 rounded-xl text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card)] transition flex items-center gap-2">
+        📋 Properties Matrix & Diagnostics
+      </button>
+    </div>
+
+    <!-- TAB 1: MOVING OSCILLOSCOPE VIEW -->
+    <section id="viewOscilloscope" class="space-y-4">
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+        <!-- Control Strip -->
+        <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-2">
+            <button id="btnPlayPause" class="px-4 py-2 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition flex items-center gap-1.5 shadow-sm">
+              <span id="playIcon">⏸️</span> <span id="playText">Pause</span>
+            </button>
+            <button id="btnResetStream" class="px-3 py-2 rounded-xl font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition border border-[var(--border)]">
+              ⏮️ Reset Time
+            </button>
+          </div>
+
+          <!-- Speed & Timebase -->
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+              <span class="text-[var(--muted-foreground)] font-medium">Scroll Speed:</span>
+              <input type="range" id="speedSlider" min="0.2" max="3.0" step="0.1" value="1.0" class="w-24 accent-blue-600 cursor-pointer" />
+              <span id="speedDisplay" class="font-mono text-blue-500 font-bold w-10">1.0x</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="flex items-center gap-1.5 cursor-pointer text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                <input type="checkbox" id="chkShowClock" checked class="accent-blue-600 rounded" />
+                <span>Show Tx Clock</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Oscilloscope Screen -->
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-2xl relative overflow-hidden glow-blue">
+          <div class="flex justify-between items-center text-[10px] sm:text-xs font-mono text-slate-400 mb-2 border-b border-slate-800/80 pb-2">
+            <span class="text-emerald-400 font-bold">● CONTINUOUS STREAMING OSCILLOSCOPE</span>
+            <span>CHANNELS: 6 LINE CODES + TX CLOCK</span>
+            <span class="text-sky-400">TIMEBASE: 1.0 ms / DIV</span>
+          </div>
+
+          <div class="relative w-full" style="height: 560px;">
+            <canvas id="scopeCanvas" class="w-full h-full block"></canvas>
+          </div>
+
+          <div class="flex justify-between items-center text-[10px] font-mono text-slate-500 mt-2 border-t border-slate-800/80 pt-2">
+            <span>Waveforms flow continuously to the left (time advances forward)</span>
+            <span class="text-amber-400">Vertical Dashes = Symbol Boundaries ($T_b$)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: SPECTRUM & WELCH PSD VIEW -->
+    <section id="viewSpectrum" class="hidden space-y-4">
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-[var(--foreground)] flex items-center gap-2">
+              📊 Live Welch's Method PSD & Theoretical Spectral Overlay
+            </h2>
+            <p class="text-xs text-[var(--muted-foreground)]">
+              Continuous one-sided power spectral density $G(f) / [V^2 T_b]$ vs normalized frequency $f / R_b$.
+            </p>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <button id="btnScaleLinear" class="px-3 py-1.5 rounded-lg font-semibold bg-blue-600 text-white">
+              Linear Scale
+            </button>
+            <button id="btnScaleDb" class="px-3 py-1.5 rounded-lg font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] border border-[var(--border)]">
+              Log Scale (dB)
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 shadow-inner">
+          <div class="relative w-full" style="height: 420px;">
+            <canvas id="psdCanvas" class="w-full h-full block"></canvas>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+          <div class="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-sky-400"></span>
+            <span>Unipolar NRZ</span>
+          </div>
+          <div class="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+            <span>Polar NRZ</span>
+          </div>
+          <div class="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-emerald-400"></span>
+            <span>Unipolar RZ</span>
+          </div>
+          <div class="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-rose-400"></span>
+            <span>Polar RZ</span>
+          </div>
+          <div class="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-purple-400"></span>
+            <span>Bipolar AMI</span>
+          </div>
+          <div class="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-amber-600"></span>
+            <span>Manchester</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: PROPERTIES MATRIX & DIAGNOSTICS -->
+    <section id="viewComparison" class="hidden space-y-4">
+      <!-- Live Metrics Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-sm">
+          <span class="text-xs text-[var(--muted-foreground)] font-semibold uppercase tracking-wider">Bit Stream Mean (DC Bias)</span>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="metricMeanBits" class="text-2xl font-bold font-mono text-blue-500">0.50</span>
+            <span class="text-xs text-[var(--muted-foreground)]">1s Ratio</span>
+          </div>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">Balanced streams reduce polar baseline wander.</p>
+        </div>
+
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-sm">
+          <span class="text-xs text-[var(--muted-foreground)] font-semibold uppercase tracking-wider">Transition Density</span>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="metricTransitions" class="text-2xl font-bold font-mono text-emerald-500">58%</span>
+            <span class="text-xs text-[var(--muted-foreground)]">of bit cells</span>
+          </div>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">Manchester guarantees 100% transition density.</p>
+        </div>
+
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-sm">
+          <span class="text-xs text-[var(--muted-foreground)] font-semibold uppercase tracking-wider">Maximum Consecutive Run</span>
+          <div class="mt-2 flex items-baseline gap-2">
+            <span id="metricMaxRun" class="text-2xl font-bold font-mono text-amber-500">2 bits</span>
+            <span class="text-xs text-[var(--muted-foreground)]">identical run</span>
+          </div>
+          <p class="text-[11px] text-[var(--muted-foreground)] mt-1">AMI & NRZ risk losing clock sync on long runs.</p>
+        </div>
+      </div>
+
+      <!-- Detailed Comparison Table -->
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 shadow-sm overflow-hidden">
+        <h3 class="text-base font-bold text-[var(--foreground)] mb-3">
+          📋 Comprehensive Line Coding Comparison Table
+        </h3>
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-left text-xs sm:text-sm">
+            <thead>
+              <tr class="border-b border-[var(--border)] text-[var(--muted-foreground)] uppercase tracking-wider text-[11px]">
+                <th class="py-3 px-3">Line Code</th>
+                <th class="py-3 px-3">Polarity</th>
+                <th class="py-3 px-3">DC Component ($f=0$)</th>
+                <th class="py-3 px-3">Null Bandwidth</th>
+                <th class="py-3 px-3">Self-Clocking</th>
+                <th class="py-3 px-3">Error Detection / Applications</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--border)] font-medium">
+              <tr class="hover:bg-slate-500/5">
+                <td class="py-3 px-3 flex items-center gap-2 font-bold text-sky-400">
+                  Unipolar NRZ
+                </td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">Unipolar (2-level: $0, +V$)</td>
+                <td class="py-3 px-3 text-amber-500">High ($+V/2$ mean, DC spike)</td>
+                <td class="py-3 px-3 text-emerald-500 font-mono">$R_b$</td>
+                <td class="py-3 px-3 text-rose-500">Poor (Fails on 0/1 runs)</td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">None. Simple on-board digital logic.</td>
+              </tr>
+              <tr class="hover:bg-slate-500/5">
+                <td class="py-3 px-3 flex items-center gap-2 font-bold text-amber-400">
+                  Polar NRZ (NRZ-L)
+                </td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">Polar (2-level: $\pm V$)</td>
+                <td class="py-3 px-3 text-emerald-500">Zero mean (Peak continuous @ DC)</td>
+                <td class="py-3 px-3 text-emerald-500 font-mono">$R_b$</td>
+                <td class="py-3 px-3 text-rose-500">Poor (Fails on long runs)</td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">None. Used in RS-232 serial interfaces.</td>
+              </tr>
+              <tr class="hover:bg-slate-500/5">
+                <td class="py-3 px-3 flex items-center gap-2 font-bold text-emerald-400">
+                  Unipolar RZ
+                </td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">Unipolar (2-level: $0, +V$)</td>
+                <td class="py-3 px-3 text-amber-500">High ($+V/4$ mean)</td>
+                <td class="py-3 px-3 text-rose-500 font-mono">$2 R_b$</td>
+                <td class="py-3 px-3 text-emerald-400">Good (Clock spike @ $R_b$)</td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">Clock easily extracted via bandpass filter.</td>
+              </tr>
+              <tr class="hover:bg-slate-500/5">
+                <td class="py-3 px-3 flex items-center gap-2 font-bold text-rose-400">
+                  Polar RZ
+                </td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">Polar (3-level: $+V, 0, -V$)</td>
+                <td class="py-3 px-3 text-emerald-500">Zero mean</td>
+                <td class="py-3 px-3 text-rose-500 font-mono">$2 R_b$</td>
+                <td class="py-3 px-3 text-emerald-400">Good (Pulse in every bit)</td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">Higher SNR required; requires 3 levels.</td>
+              </tr>
+              <tr class="hover:bg-slate-500/5">
+                <td class="py-3 px-3 flex items-center gap-2 font-bold text-purple-400">
+                  Bipolar AMI
+                </td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">Pseudoternary (3-level)</td>
+                <td class="py-3 px-3 text-emerald-400 font-bold">Strictly Zero DC ($G(0)=0$)</td>
+                <td class="py-3 px-3 text-emerald-500 font-mono">$R_b$</td>
+                <td class="py-3 px-3 text-amber-500">Moderate (Fails on long 0s)</td>
+                <td class="py-3 px-3 text-purple-400 font-medium">Bipolar Violation error detection; T1/E1 lines.</td>
+              </tr>
+              <tr class="hover:bg-slate-500/5">
+                <td class="py-3 px-3 flex items-center gap-2 font-bold text-amber-600">
+                  Manchester
+                </td>
+                <td class="py-3 px-3 text-[var(--muted-foreground)]">Polar Split-Phase ($\pm V$)</td>
+                <td class="py-3 px-3 text-emerald-400 font-bold">Strictly Zero DC ($G(0)=0$)</td>
+                <td class="py-3 px-3 text-rose-500 font-mono">$2 R_b$</td>
+                <td class="py-3 px-3 text-emerald-400 font-bold">Excellent (Guaranteed mid-bit edge)</td>
+                <td class="py-3 px-3 text-amber-500 font-medium">Self-clocking standard in 10BASE-T Ethernet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // Tab switching logic
+    const tabOscilloscope = document.getElementById('tabOscilloscope');
+    const tabSpectrum = document.getElementById('tabSpectrum');
+    const tabComparison = document.getElementById('tabComparison');
+    const viewOscilloscope = document.getElementById('viewOscilloscope');
+    const viewSpectrum = document.getElementById('viewSpectrum');
+    const viewComparison = document.getElementById('viewComparison');
+
+    function setActiveTab(tab) {
+      [tabOscilloscope, tabSpectrum, tabComparison].forEach(t => {
+        t.className = "px-4 py-2 rounded-xl text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--card)] transition flex items-center gap-2 font-semibold";
+      });
+      [viewOscilloscope, viewSpectrum, viewComparison].forEach(v => v.classList.add('hidden'));
+
+      if (tab === 'oscilloscope') {
+        tabOscilloscope.className = "px-4 py-2 rounded-xl bg-blue-600 text-white shadow-sm flex items-center gap-2 font-semibold";
+        viewOscilloscope.classList.remove('hidden');
+      } else if (tab === 'spectrum') {
+        tabSpectrum.className = "px-4 py-2 rounded-xl bg-blue-600 text-white shadow-sm flex items-center gap-2 font-semibold";
+        viewSpectrum.classList.remove('hidden');
+        renderPSD();
+      } else if (tab === 'comparison') {
+        tabComparison.className = "px-4 py-2 rounded-xl bg-blue-600 text-white shadow-sm flex items-center gap-2 font-semibold";
+        viewComparison.classList.remove('hidden');
+        updateDiagnostics();
+      }
+    }
+
+    tabOscilloscope.addEventListener('click', () => setActiveTab('oscilloscope'));
+    tabSpectrum.addEventListener('click', () => setActiveTab('spectrum'));
+    tabComparison.addEventListener('click', () => setActiveTab('comparison'));
+
+    // Bit Stream Management
+    const bitInput = document.getElementById('bitInput');
+    const bitCount = document.getElementById('bitCount');
+    const btnRandom = document.getElementById('btnRandom');
+    const btnToggleAll = document.getElementById('btnToggleAll');
+    const btnAlternating = document.getElementById('btnAlternating');
+    const btnLongRun = document.getElementById('btnLongRun');
+
+    let streamBuffer = [];
+    const BUFFER_CAPACITY = 2000;
+
+    function parseBits() {
+      const raw = bitInput.value.replace(/[^01]/g, '') || "101100101101";
+      bitCount.textContent = raw.length;
+      return raw.split('').map(Number);
+    }
+
+    function refreshBitStream() {
+      const bits = parseBits();
+      streamBuffer = [];
+      for (let i = 0; i < BUFFER_CAPACITY; i++) {
+        streamBuffer.push(bits[i % bits.length]);
+      }
+      computeAmiMap();
+      updateDiagnostics();
+      if (!viewSpectrum.classList.contains('hidden')) {
+        renderPSD();
+      }
+    }
+
+    let amiBuffer = [];
+    function computeAmiMap() {
+      amiBuffer = new Array(streamBuffer.length).fill(0);
+      let pol = 1;
+      for (let i = 0; i < streamBuffer.length; i++) {
+        if (streamBuffer[i] === 1) {
+          amiBuffer[i] = pol;
+          pol = -pol;
+        }
+      }
+    }
+
+    // Diagnostics calculation
+    function updateDiagnostics() {
+      const bits = parseBits();
+      const ones = bits.filter(b => b === 1).length;
+      const mean = (ones / bits.length).toFixed(2);
+      document.getElementById('metricMeanBits').textContent = mean;
+
+      let trans = 0;
+      for (let i = 1; i < bits.length; i++) {
+        if (bits[i] !== bits[i-1]) trans++;
+      }
+      const transPct = Math.round((trans / (bits.length - 1)) * 100) || 0;
+      document.getElementById('metricTransitions').textContent = transPct + '%';
+
+      let maxRun = 1, currentRun = 1;
+      for (let i = 1; i < bits.length; i++) {
+        if (bits[i] === bits[i-1]) {
+          currentRun++;
+          if (currentRun > maxRun) maxRun = currentRun;
+        } else {
+          currentRun = 1;
+        }
+      }
+      document.getElementById('metricMaxRun').textContent = maxRun + (maxRun === 1 ? ' bit' : ' bits');
+    }
+
+    // Interactive Button Actions
+    btnRandom.addEventListener('click', () => {
+      const len = 16;
+      let str = '';
+      for (let i = 0; i < len; i++) str += Math.random() > 0.5 ? '1' : '0';
+      bitInput.value = str;
+      refreshBitStream();
+    });
+
+    btnToggleAll.addEventListener('click', () => {
+      const bits = parseBits();
+      bitInput.value = bits.map(b => b === 1 ? '0' : '1').join('');
+      refreshBitStream();
+    });
+
+    btnAlternating.addEventListener('click', () => {
+      bitInput.value = "1010101010101010";
+      refreshBitStream();
+    });
+
+    btnLongRun.addEventListener('click', () => {
+      bitInput.value = "1111110000001111";
+      refreshBitStream();
+    });
+
+    bitInput.addEventListener('input', refreshBitStream);
+
+    // -------------------------------------------------------------
+    // OSCILLOSCOPE LOGIC (Canvas Engine)
+    // -------------------------------------------------------------
+    const scopeCanvas = document.getElementById('scopeCanvas');
+    const scopeCtx = scopeCanvas.getContext('2d');
+    const btnPlayPause = document.getElementById('btnPlayPause');
+    const playIcon = document.getElementById('playIcon');
+    const playText = document.getElementById('playText');
+    const btnResetStream = document.getElementById('btnResetStream');
+    const speedSlider = document.getElementById('speedSlider');
+    const speedDisplay = document.getElementById('speedDisplay');
+    const chkShowClock = document.getElementById('chkShowClock');
+
+    let isPlaying = true;
+    let scrollPos = 0;
+    let speed = 1.0;
+    let lastTime = 0;
+
+    const CHANNELS = [
+      { id: "clock", name: "Tx Clock (Timing)", color: "#94a3b8" },
+      { id: "unipolar_nrz", name: "Unipolar NRZ", color: "#38bdf8" },
+      { id: "polar_nrz", name: "Polar NRZ (NRZ-L)", color: "#fb923c" },
+      { id: "unipolar_rz", name: "Unipolar RZ", color: "#4ade80" },
+      { id: "polar_rz", name: "Polar RZ", color: "#f87171" },
+      { id: "bipolar_ami", name: "Bipolar AMI", color: "#c084fc" },
+      { id: "manchester", name: "Manchester", color: "#d97706" }
+    ];
+
+    function getSample(bitIdx, frac, type) {
+      if (bitIdx < 0 || bitIdx >= streamBuffer.length) return 0;
+      const b = streamBuffer[bitIdx];
+
+      switch(type) {
+        case 'clock':
+          return frac < 0.5 ? 1 : -1;
+        case 'unipolar_nrz':
+          return b === 1 ? 1 : 0;
+        case 'polar_nrz':
+          return b === 1 ? 1 : -1;
+        case 'unipolar_rz':
+          return (b === 1 && frac < 0.5) ? 1 : 0;
+        case 'polar_rz':
+          if (frac >= 0.5) return 0;
+          return b === 1 ? 1 : -1;
+        case 'bipolar_ami':
+          return amiBuffer[bitIdx] || 0;
+        case 'manchester':
+          return b === 1 ? (frac < 0.5 ? 1 : -1) : (frac < 0.5 ? -1 : 1);
+        default:
+          return 0;
+      }
+    }
+
+    function renderScope(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+      lastTime = timestamp;
+
+      if (isPlaying) {
+        scrollPos += dt * speed * 2.2;
+        if (scrollPos > streamBuffer.length - 20) {
+          scrollPos = 0;
+        }
+      }
+
+      const dpr = window.devicePixelRatio || 1;
+      const rect = scopeCanvas.getBoundingClientRect();
+      if (scopeCanvas.width !== rect.width * dpr || scopeCanvas.height !== rect.height * dpr) {
+        scopeCanvas.width = rect.width * dpr;
+        scopeCanvas.height = rect.height * dpr;
+      }
+
+      scopeCtx.save();
+      scopeCtx.scale(dpr, dpr);
+
+      const W = rect.width;
+      const H = rect.height;
+
+      scopeCtx.fillStyle = "#020617";
+      scopeCtx.fillRect(0, 0, W, H);
+
+      const activeChannels = chkShowClock.checked ? CHANNELS : CHANNELS.filter(c => c.id !== 'clock');
+      const leftMargin = 150;
+      const rightMargin = 20;
+      const plotW = W - leftMargin - rightMargin;
+      const numVisibleBits = 8;
+      const pixelsPerBit = plotW / numVisibleBits;
+      const chH = H / activeChannels.length;
+
+      // Vertical bit boundaries
+      const startBit = Math.floor(scrollPos);
+      const fracOffset = scrollPos - startBit;
+
+      for (let i = -1; i <= numVisibleBits + 1; i++) {
+        const bIdx = startBit + i;
+        const x = leftMargin + (i - fracOffset) * pixelsPerBit;
+
+        if (x >= leftMargin - 5 && x <= W - rightMargin + 5) {
+          scopeCtx.strokeStyle = "rgba(71, 85, 105, 0.35)";
+          scopeCtx.lineWidth = 1;
+          scopeCtx.setLineDash([3, 3]);
+          scopeCtx.beginPath();
+          scopeCtx.moveTo(x, 0);
+          scopeCtx.lineTo(x, H);
+          scopeCtx.stroke();
+          scopeCtx.setLineDash([]);
+
+          // Bit indicator on top
+          if (bIdx >= 0 && bIdx < streamBuffer.length) {
+            const val = streamBuffer[bIdx];
+            const xMid = x + pixelsPerBit * 0.5;
+            if (xMid >= leftMargin && xMid <= W - rightMargin) {
+              scopeCtx.fillStyle = val === 1 ? "#38bdf8" : "#64748b";
+              scopeCtx.font = "bold 11px monospace";
+              scopeCtx.textAlign = "center";
+              scopeCtx.fillText(`Bit: ${val}`, xMid, 14);
+            }
+          }
+        }
+      }
+
+      // Draw each channel
+      activeChannels.forEach((ch, idx) => {
+        const yCenter = idx * chH + chH * 0.55;
+        const vScale = chH * 0.34;
+
+        // Baseline
+        scopeCtx.strokeStyle = "rgba(51, 65, 85, 0.4)";
+        scopeCtx.lineWidth = 1;
+        scopeCtx.setLineDash([2, 2]);
+        scopeCtx.beginPath();
+        scopeCtx.moveTo(leftMargin, yCenter);
+        scopeCtx.lineTo(W - rightMargin, yCenter);
+        scopeCtx.stroke();
+        scopeCtx.setLineDash([]);
+
+        // Label
+        scopeCtx.fillStyle = ch.color;
+        scopeCtx.font = "bold 11px system-ui, sans-serif";
+        scopeCtx.textAlign = "left";
+        scopeCtx.textBaseline = "middle";
+        scopeCtx.fillText(ch.name, 12, yCenter);
+
+        // Signal trace
+        scopeCtx.strokeStyle = ch.color;
+        scopeCtx.lineWidth = 2.2;
+        scopeCtx.shadowColor = ch.color;
+        scopeCtx.shadowBlur = 4;
+        scopeCtx.beginPath();
+
+        let first = true;
+        for (let px = 0; px <= plotW; px += 2) {
+          const screenX = leftMargin + px;
+          const bitPos = scrollPos + (px / pixelsPerBit);
+          const bI = Math.floor(bitPos);
+          const fI = bitPos - bI;
+
+          const val = getSample(bI, fI, ch.id);
+          const screenY = yCenter - val * vScale;
+
+          if (first) {
+            scopeCtx.moveTo(screenX, screenY);
+            first = false;
+          } else {
+            scopeCtx.lineTo(screenX, screenY);
+          }
+        }
+        scopeCtx.stroke();
+        scopeCtx.shadowBlur = 0;
+      });
+
+      scopeCtx.restore();
+      requestAnimationFrame(renderScope);
+    }
+
+    btnPlayPause.addEventListener('click', () => {
+      isPlaying = !isPlaying;
+      if (isPlaying) {
+        playIcon.textContent = "⏸️";
+        playText.textContent = "Pause";
+        btnPlayPause.classList.replace('bg-emerald-600', 'bg-blue-600');
+      } else {
+        playIcon.textContent = "▶️";
+        playText.textContent = "Resume";
+        btnPlayPause.classList.replace('bg-blue-600', 'bg-emerald-600');
+      }
+    });
+
+    btnResetStream.addEventListener('click', () => { scrollPos = 0; });
+    speedSlider.addEventListener('input', (e) => {
+      speed = parseFloat(e.target.value);
+      speedDisplay.textContent = speed.toFixed(1) + 'x';
+    });
+
+    // -------------------------------------------------------------
+    // PSD SPECTRUM ESTIMATOR (Canvas Renderer)
+    // -------------------------------------------------------------
+    const psdCanvas = document.getElementById('psdCanvas');
+    const psdCtx = psdCanvas.getContext('2d');
+    const btnScaleLinear = document.getElementById('btnScaleLinear');
+    const btnScaleDb = document.getElementById('btnScaleDb');
+    let isDbScale = false;
+
+    btnScaleLinear.addEventListener('click', () => {
+      isDbScale = false;
+      btnScaleLinear.className = "px-3 py-1.5 rounded-lg font-semibold bg-blue-600 text-white";
+      btnScaleDb.className = "px-3 py-1.5 rounded-lg font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] border border-[var(--border)]";
+      renderPSD();
+    });
+
+    btnScaleDb.addEventListener('click', () => {
+      isDbScale = true;
+      btnScaleDb.className = "px-3 py-1.5 rounded-lg font-semibold bg-blue-600 text-white";
+      btnScaleLinear.className = "px-3 py-1.5 rounded-lg font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] border border-[var(--border)]";
+      renderPSD();
+    });
+
+    function sinc(x) {
+      if (Math.abs(x) < 1e-9) return 1.0;
+      return Math.sin(Math.PI * x) / (Math.PI * x);
+    }
+
+    function theoreticalPSD(fn, type) {
+      const f = Math.max(fn, 1e-9);
+      switch(type) {
+        case 'unipolar_nrz':
+          return 2.0 * 0.25 * Math.pow(sinc(f), 2);
+        case 'polar_nrz':
+          return 2.0 * 1.0 * Math.pow(sinc(f), 2);
+        case 'unipolar_rz':
+          return 2.0 * 0.0625 * Math.pow(sinc(f / 2.0), 2);
+        case 'polar_rz':
+          return 2.0 * 0.25 * Math.pow(sinc(f / 2.0), 2);
+        case 'bipolar_ami':
+          return 2.0 * 1.0 * Math.pow(sinc(f), 2) * Math.pow(Math.sin(Math.PI * f), 2);
+        case 'manchester':
+          return 2.0 * 1.0 * Math.pow(sinc(f / 2.0), 2) * Math.pow(Math.sin(Math.PI * f / 2.0), 2);
+        default:
+          return 0;
+      }
+    }
+
+    function renderPSD() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = psdCanvas.getBoundingClientRect();
+      psdCanvas.width = rect.width * dpr;
+      psdCanvas.height = rect.height * dpr;
+
+      psdCtx.save();
+      psdCtx.scale(dpr, dpr);
+
+      const W = rect.width;
+      const H = rect.height;
+
+      psdCtx.fillStyle = "#020617";
+      psdCtx.fillRect(0, 0, W, H);
+
+      const leftM = 60, rightM = 30, topM = 30, btmM = 45;
+      const plotW = W - leftM - rightM;
+      const plotH = H - topM - btmM;
+
+      const fMax = 3.5;
+      const yMax = isDbScale ? 10 : 2.2;
+      const yMin = isDbScale ? -35 : 0;
+
+      // Axes & Grid
+      psdCtx.strokeStyle = "rgba(71, 85, 105, 0.4)";
+      psdCtx.lineWidth = 1;
+      psdCtx.strokeRect(leftM, topM, plotW, plotH);
+
+      // Frequency Grid (0 to 3.5 Rb)
+      psdCtx.fillStyle = "#94a3b8";
+      psdCtx.font = "10px monospace";
+      psdCtx.textAlign = "center";
+
+      for (let f = 0; f <= fMax; f += 0.5) {
+        const x = leftM + (f / fMax) * plotW;
+        psdCtx.strokeStyle = "rgba(51, 65, 85, 0.3)";
+        psdCtx.beginPath();
+        psdCtx.moveTo(x, topM);
+        psdCtx.lineTo(x, topM + plotH);
+        psdCtx.stroke();
+        psdCtx.fillText(`${f.toFixed(1)} Rb`, x, topM + plotH + 18);
+      }
+
+      // Y Grid
+      psdCtx.textAlign = "right";
+      const ySteps = isDbScale ? 9 : 5;
+      for (let i = 0; i <= ySteps; i++) {
+        const val = isDbScale ? yMin + (i / ySteps) * (yMax - yMin) : (i / ySteps) * yMax;
+        const y = topM + plotH - (i / ySteps) * plotH;
+        psdCtx.strokeStyle = "rgba(51, 65, 85, 0.3)";
+        psdCtx.beginPath();
+        psdCtx.moveTo(leftM, y);
+        psdCtx.lineTo(leftM + plotW, y);
+        psdCtx.stroke();
+        psdCtx.fillText(isDbScale ? `${val.toFixed(0)} dB` : val.toFixed(1), leftM - 8, y + 3);
+      }
+
+      // Plot each theoretical PSD
+      const codes = CHANNELS.filter(c => c.id !== 'clock');
+      codes.forEach(ch => {
+        psdCtx.strokeStyle = ch.color;
+        psdCtx.lineWidth = 2.0;
+        psdCtx.beginPath();
+
+        let first = true;
+        for (let px = 0; px <= plotW; px += 2) {
+          const fn = (px / plotW) * fMax;
+          let psd = theoreticalPSD(fn, ch.id);
+          let yVal = psd;
+          if (isDbScale) {
+            yVal = 10 * Math.log10(Math.max(psd, 1e-5));
+          }
+
+          const normY = (yVal - yMin) / (yMax - yMin);
+          const screenX = leftM + px;
+          const screenY = topM + plotH - Math.max(0, Math.min(1, normY)) * plotH;
+
+          if (first) {
+            psdCtx.moveTo(screenX, screenY);
+            first = false;
+          } else {
+            psdCtx.lineTo(screenX, screenY);
+          }
+        }
+        psdCtx.stroke();
+      });
+
+      psdCtx.restore();
+    }
+
+    // Initialize application
+    refreshBitStream();
+    requestAnimationFrame(renderScope);
+  </script>
+</body>
+</html>

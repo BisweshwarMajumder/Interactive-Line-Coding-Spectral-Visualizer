@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Line Coding & PSD Interactive Visualizer</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-4 sm:p-6 font-sans">
+  <div class="max-w-5xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-[var(--foreground)]">
+            ⚡ Interactive Line Coding & Spectral Visualizer
+          </h1>
+          <p class="text-sm text-[var(--muted-foreground)] mt-1">
+            Real-time multi-waveform generator, DC analysis, and spectral property explorer without toolboxes.
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            6 Standard Codes
+          </span>
+        </div>
+      </div>
+
+      <!-- Web Form Input Area -->
+      <div class="mt-6 pt-5 border-t border-[var(--border)]">
+        <label class="block text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
+          Binary Input Sequence (Enter 0s and 1s)
+        </label>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-1">
+            <input 
+              type="text" 
+              id="bitInput" 
+              value="101100101101" 
+              placeholder="e.g. 101100101101"
+              class="w-full bg-[var(--background)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-sm font-mono tracking-widest text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button 
+            id="btnRandom" 
+            class="px-4 py-2.5 rounded-xl text-sm font-medium bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-90 transition active:scale-95 border border-[var(--border)]"
+          >
+            🎲 Random Bits
+          </button>
+          <button 
+            id="btnToggleAll" 
+            class="px-4 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition active:scale-95 shadow-sm"
+          >
+            🔄 Invert Sequence
+          </button>
+        </div>
+        <p id="inputError" class="text-xs text-rose-500 mt-1.5 hidden">Please enter only binary characters (0 and 1).</p>
+      </div>
+    </div>
+
+    <!-- Waveform Display Cards -->
+    <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-base font-bold text-[var(--foreground)]">
+          📊 Time-Domain Waveforms
+        </h2>
+        <span class="text-xs text-[var(--muted-foreground)]">Bit duration $T_b$, Peak $\pm 1\,\text{V}$</span>
+      </div>
+
+      <div class="border border-[var(--border)] rounded-xl bg-slate-950 p-2 overflow-hidden shadow-inner">
+        <canvas id="waveformCanvas" height="520" class="w-full"></canvas>
+      </div>
+    </div>
+
+    <!-- Comparative Specs Matrix -->
+    <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
+      <h2 class="text-base font-bold text-[var(--foreground)] mb-4">
+        📋 Properties & Spectral Comparison
+      </h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs sm:text-sm">
+          <thead>
+            <tr class="border-b border-[var(--border)] text-[var(--muted-foreground)] uppercase tracking-wider text-[11px]">
+              <th class="py-3 px-3">Line Code</th>
+              <th class="py-3 px-3">Polarity</th>
+              <th class="py-3 px-3">DC Component</th>
+              <th class="py-3 px-3">Bandwidth ($B_{\text{null}}$)</th>
+              <th class="py-3 px-3">Self-Clocking</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[var(--border)] font-medium">
+            <tr class="hover:bg-slate-500/5">
+              <td class="py-3 px-3 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span> Unipolar NRZ
+              </td>
+              <td class="py-3 px-3 text-[var(--muted-foreground)]">Unipolar (2 levels)</td>
+              <td class="py-3 px-3 text-amber-500">High ($+V/2$)</td>
+              <td class="py-3 px-3 text-emerald-500">$R_b$ (Narrow)</td>
+              <td class="py-3 px-3 text-rose-500">Poor (No clock on 0s/1s)</td>
+            </tr>
+            <tr class="hover:bg-slate-500/5">
+              <td class="py-3 px-3 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Polar NRZ (NRZ-L)
+              </td>
+              <td class="py-3 px-3 text-[var(--muted-foreground)]">Polar (2 levels)</td>
+              <td class="py-3 px-3 text-emerald-500">Zero mean (Peak @ DC)</td>
+              <td class="py-3 px-3 text-emerald-500">$R_b$ (Narrow)</td>
+              <td class="py-3 px-3 text-rose-500">Poor (Loses sync on runs)</td>
+            </tr>
+            <tr class="hover:bg-slate-500/5">
+              <td class="py-3 px-3 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Unipolar RZ
+              </td>
+              <td class="py-3 px-3 text-[var(--muted-foreground)]">Unipolar (2 levels)</td>
+              <td class="py-3 px-3 text-amber-500">High ($+V/4$)</td>
+              <td class="py-3 px-3 text-rose-500">$2 R_b$ (Wide)</td>
+              <td class="py-3 px-3 text-emerald-500">Good (Clock line @ $R_b$)</td>
+            </tr>
+            <tr class="hover:bg-slate-500/5">
+              <td class="py-3 px-3 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span> Polar RZ
+              </td>
+              <td class="py-3 px-3 text-[var(--muted-foreground)]">Polar (3 levels)</td>
+              <td class="py-3 px-3 text-emerald-500">Zero mean</td>
+              <td class="py-3 px-3 text-rose-500">$2 R_b$ (Wide)</td>
+              <td class="py-3 px-3 text-emerald-500">Good (Return to zero)</td>
+            </tr>
+            <tr class="hover:bg-slate-500/5">
+              <td class="py-3 px-3 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span> Bipolar AMI
+              </td>
+              <td class="py-3 px-3 text-[var(--muted-foreground)]">Pseudoternary (3 levels)</td>
+              <td class="py-3 px-3 text-emerald-400 font-bold">Strictly Zero DC</td>
+              <td class="py-3 px-3 text-emerald-500">$R_b$ (Narrow)</td>
+              <td class="py-3 px-3 text-amber-500">Moderate (Sync on 1s)</td>
+            </tr>
+            <tr class="hover:bg-slate-500/5">
+              <td class="py-3 px-3 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-600"></span> Manchester
+              </td>
+              <td class="py-3 px-3 text-[var(--muted-foreground)]">Polar Split-Phase</td>
+              <td class="py-3 px-3 text-emerald-400 font-bold">Strictly Zero DC</td>
+              <td class="py-3 px-3 text-rose-500">$2 R_b$ (Wide)</td>
+              <td class="py-3 px-3 text-emerald-400 font-bold">Excellent (Every bit)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const bitInput = document.getElementById('bitInput');
+    const inputError = document.getElementById('inputError');
+    const btnRandom = document.getElementById('btnRandom');
+    const btnToggleAll = document.getElementById('btnToggleAll');
+    const canvas = document.getElementById('waveformCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const CODE_CONFIGS = [
+      { name: "Unipolar NRZ", color: "#38bdf8", type: "unipolar_nrz" },
+      { name: "Polar NRZ (NRZ-L)", color: "#fb923c", type: "polar_nrz" },
+      { name: "Unipolar RZ", color: "#4ade80", type: "unipolar_rz" },
+      { name: "Polar RZ", color: "#f87171", type: "polar_rz" },
+      { name: "Bipolar AMI", color: "#c084fc", type: "bipolar_ami" },
+      { name: "Manchester", color: "#d97706", type: "manchester" }
+    ];
+
+    function getBits() {
+      const raw = bitInput.value.trim();
+      if (!/^[01]+$/.test(raw)) {
+        inputError.classList.remove('hidden');
+        return [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1];
+      }
+      inputError.classList.add('hidden');
+      return raw.split('').map(Number);
+    }
+
+    function generateWaveformSamples(bits, type) {
+      const samples = [];
+      let amiPolarity = 1;
+
+      for (let i = 0; i < bits.length; i++) {
+        const b = bits[i];
+        if (type === 'unipolar_nrz') {
+          const v = b === 1 ? 1 : 0;
+          samples.push({ t0: i, t1: i + 1, v0: v, v1: v });
+        } else if (type === 'polar_nrz') {
+          const v = b === 1 ? 1 : -1;
+          samples.push({ t0: i, t1: i + 1, v0: v, v1: v });
+        } else if (type === 'unipolar_rz') {
+          const v = b === 1 ? 1 : 0;
+          samples.push({ t0: i, t1: i + 0.5, v0: v, v1: v });
+          samples.push({ t0: i + 0.5, t1: i + 1, v0: 0, v1: 0 });
+        } else if (type === 'polar_rz') {
+          const v = b === 1 ? 1 : -1;
+          samples.push({ t0: i, t1: i + 0.5, v0: v, v1: v });
+          samples.push({ t0: i + 0.5, t1: i + 1, v0: 0, v1: 0 });
+        } else if (type === 'bipolar_ami') {
+          if (b === 1) {
+            const v = amiPolarity;
+            amiPolarity = -amiPolarity;
+            samples.push({ t0: i, t1: i + 1, v0: v, v1: v });
+          } else {
+            samples.push({ t0: i, t1: i + 1, v0: 0, v1: 0 });
+          }
+        } else if (type === 'manchester') {
+          if (b === 1) {
+            samples.push({ t0: i, t1: i + 0.5, v0: 1, v1: 1 });
+            samples.push({ t0: i + 0.5, t1: i + 1, v0: -1, v1: -1 });
+          } else {
+            samples.push({ t0: i, t1: i + 0.5, v0: -1, v1: -1 });
+            samples.push({ t0: i + 0.5, t1: i + 1, v0: 1, v1: 1 });
+          }
+        }
+      }
+      return samples;
+    }
+
+    function renderWaveforms() {
+      const bits = getBits();
+      const N = bits.length;
+
+      // Handle high-DPI canvas
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = 540 * dpr;
+      ctx.scale(dpr, dpr);
+
+      const W = rect.width;
+      const H = 540;
+
+      ctx.clearRect(0, 0, W, H);
+
+      const leftMargin = 150;
+      const rightMargin = 20;
+      const topMargin = 30;
+      const bottomMargin = 25;
+      const plotW = W - leftMargin - rightMargin;
+      const numRows = CODE_CONFIGS.length;
+      const rowH = (H - topMargin - bottomMargin) / numRows;
+
+      // Top bit header
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "bold 11px ui-monospace, monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      for (let i = 0; i < N; i++) {
+        const xCenter = leftMargin + (i + 0.5) * (plotW / N);
+        ctx.fillStyle = bits[i] === 1 ? "#38bdf8" : "#94a3b8";
+        ctx.fillText(`Bit: ${bits[i]}`, xCenter, topMargin / 2);
+      }
+
+      // Draw each line code
+      CODE_CONFIGS.forEach((config, idx) => {
+        const yCenter = topMargin + idx * rowH + rowH / 2;
+        const vScale = (rowH * 0.35);
+
+        // Row label
+        ctx.fillStyle = "#e2e8f0";
+        ctx.font = "bold 11px system-ui, sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(config.name, 12, yCenter);
+
+        // Zero reference line
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.2)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(leftMargin, yCenter);
+        ctx.lineTo(leftMargin + plotW, yCenter);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Vertical bit boundaries
+        for (let i = 0; i <= N; i++) {
+          const x = leftMargin + i * (plotW / N);
+          ctx.strokeStyle = "rgba(148, 163, 184, 0.15)";
+          ctx.beginPath();
+          ctx.moveTo(x, topMargin + idx * rowH + 4);
+          ctx.lineTo(x, topMargin + (idx + 1) * rowH - 4);
+          ctx.stroke();
+        }
+
+        // Draw waveform segments
+        const segments = generateWaveformSamples(bits, config.type);
+        ctx.strokeStyle = config.color;
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = "miter";
+        ctx.beginPath();
+
+        let lastX = null;
+        let lastY = null;
+
+        segments.forEach((seg, sIdx) => {
+          const x0 = leftMargin + (seg.t0 / N) * plotW;
+          const x1 = leftMargin + (seg.t1 / N) * plotW;
+          const y = yCenter - seg.v0 * vScale;
+
+          if (sIdx === 0) {
+            ctx.moveTo(x0, y);
+          } else {
+            ctx.lineTo(x0, y);
+          }
+          ctx.lineTo(x1, y);
+          lastX = x1;
+          lastY = y;
+        });
+
+        ctx.stroke();
+      });
+    }
+
+    // Interactive event listeners
+    bitInput.addEventListener('input', renderWaveforms);
+    window.addEventListener('resize', renderWaveforms);
+
+    btnRandom.addEventListener('click', () => {
+      const len = Math.floor(Math.random() * 6) + 10;
+      let s = '';
+      for (let i = 0; i < len; i++) s += Math.random() > 0.5 ? '1' : '0';
+      bitInput.value = s;
+      renderWaveforms();
+    });
+
+    btnToggleAll.addEventListener('click', () => {
+      const bits = getBits();
+      bitInput.value = bits.map(b => b === 1 ? '0' : '1').join('');
+      renderWaveforms();
+    });
+
+    // Initial render
+    setTimeout(renderWaveforms, 50);
+  </script>
+</body>
+</html>
